@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Translator Tool</title>
+</head>
+
+<body>
+
+    <!-- All of the Node.js APIs are available in this renderer process. -->
+
+    <style>
+        #drag-file {
+            background-color: rgb(102, 255, 0);
+            color: rgb(0, 0, 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 300px;
+            height: 300px;
+        }
+
+        body {
+            margin: 0px;
+        }
+
+        .footer {
+            position: fixed;
+            font-size: 12px;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: cornsilk;
+            color: darkslategrey;
+            text-align: center;
+            padding: 5px;
+        }
+    </style>
+
+    <!--<div id="drag-file">
+        <p>Drag your files here</p>
+    </div>-->
+
+    <div style="display:flex;flex-direction: row;height:70vh">
+        <div style="flex:1;background-color:beige">
+            <h3>Please enter the json to be translated</h3>
+            <textarea id="jsonInput" style="height:50vh;width:90%"></textarea>
+            <h3>or select File:</h3>
+            <input name="myFile" class="file-upload-button" type="file">
+        </div>
+
+        <div style="flex:1;background-color:#eeeeee">
+            <label><strong>Select Language</strong></label><br>
+            <select name="lang" id="translation_lang"> es","tr","ru","pt"
+                <option value="tr">Turkish</option>
+                <option value="ru">Russian</option>
+                <option value="es">Spanish</option>
+                <option value="pt">Portugese</option>
+            </select>
+            <button id="translate-btn">Translate</button>
+            <div>
+                <button id="copy-btn" disabled>Copy</button>
+            </div>
+            <div>
+                <pre style="width:70vh;overflow:auto;background-color: ghostwhite" id="jsonOutput"></pre>
+            </div>
+        </div>
+    </div>
+    <div class="footer">
+        <span>For suggestions/feeback/bug, please contact Amit/Virinder</span>
+    </div>
+
+    <script>
+        const translate = require('google-translate-api');
+        const $ = require('jQuery');
+        const { clipboard } = require('electron')
+        let jsonOutput;
+
+        $('#translate-btn').click(function () {
+            //disable copy
+            translate('I spea Dutch').then(res => {
+                console.log(res.from.text.value);
+                //=> I [speak] Dutch
+            }).catch(err => {
+                console.error(err);
+            });
+            $("#copy-btn").attr("disabled")
+            let lang = $('#translation_lang').val();
+            let json = parseJson();
+            if (!json) {
+                alert("Please enter a valid JSON");
+                return;
+            }
+            translateData(lang, json);
+        });
+
+        $('#copy-btn').click(function () {
+            clipboard.writeText(jsonOutput);
+        });
+        $(document).on('change', '.file-upload-button', function (event) {
+            var reader = new FileReader();
+            reader.onload = function (event) {
+                $("#jsonInput").val(event.target.result);
+            }
+            reader.readAsText(event.target.files[0]);
+        });
+
+        // parse json in textbox
+        function parseJson() {
+            try {
+                return JSON.parse($('#jsonInput').val());
+            } catch (error) {
+                //log error
+                return;
+            }
+        }
+
+        // translate json
+        async function translateData(lang, json) {
+
+            //convert json to single one dimension object
+            let flatObj = {};
+            flattener(flatObj, json, '', Object.keys(json));
+            console.log(flatObj);
+
+            let len = Object.keys(flatObj).length
+            let count = 0;
+
+            const cancelInterval = setInterval(() => console.log((count / len) * 100), 10000);
+
+            for (let i in flatObj) {
+                //wait
+                await sleep(500);
+                translate(flatObj[i], { from: 'en', to: lang }).then(res => {
+                    count++;
+                    flatObj[i] = res.text;
+                    console.log('Count Completed: ', count);
+                    if (count == len) {
+                        rebuildAndOutput(flatObj, json);
+                    }
+                }).catch(err => {
+                    console.error(err);
+                });
+            }
+        };
+
+        function sleep(ms) {
+            return new Promise(resolve => {
+                setTimeout(resolve, ms)
+            })
+        }
+
+        // rebuilds the json and show in view
+        function rebuildAndOutput(flatObj, json) {
+            rebuildJson(flatObj, json, '');
+            jsonOutput = JSON.stringify(json, null, 2);
+            $("#jsonOutput").text(jsonOutput);
+            //enable copy
+            $("#copy-btn").removeAttr("disabled")
+        }
+
+        // flatten json
+        function flattener(obj, json, parentKey, keys) {
+            for (let key of keys) {
+                if (typeof json[key] == 'object') {
+                    let newKeyName = !parentKey ? key : parentKey + "$$" + key;
+                    flattener(obj, json[key], newKeyName, Object.keys(json[key]));
+                }
+                else {
+                    let newKeyName = !parentKey ? key : parentKey + "$$" + key;
+                    obj[newKeyName] = json[key];
+                }
+            }
+        };
+
+        //rebuild translated json
+        function rebuildJson(flatObj, json, parentKey) {
+            for (let key of Object.keys(json)) {
+                if (typeof json[key] == 'object') {
+                    let newKeyName = !parentKey ? key : parentKey + "$$" + key;
+                    rebuildJson(flatObj, json[key], newKeyName);
+                }
+                else {
+                    let keyName = !parentKey ? key : parentKey + "$$" + key;
+                    json[key] = flatObj[keyName];
+                }
+            }
+        };
+
+
+    </script>
+    <!-- <script>
+      const translate = require('google-translate-api');
+
+        translate('Ik spreek Engels', {to: 'en'}).then(res => {
+            document.write(res.text);
+            //=> I speak English
+            document.write(res.from.language.iso);
+            //=> nl
+        }).catch(err => {
+            console.error(err);
+        });
+    </script> -->
+    <script>
+        // You can also require other files to run in this process
+        require('./renderer.js')
+
+      // translate('I spea Dutch!', {from: 'en', to: 'nl'}).then(res => {
+      //     document.write(res.text);
+      //     //=> Ik spreek Nederlands!
+      //     document.write(res.from.text.autoCorrected);
+      //     //=> true
+      //     document.write(res.from.text.value);
+      //     //=> I [speak] Dutch!
+      //     document.write(res.from.text.didYouMean);
+      //     //=> false
+      // }).catch(err => {
+      //     console.error(err);
+      // });
+    </script>
+</body>
+
+</html>

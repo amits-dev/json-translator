@@ -1,0 +1,10 @@
+# Node Dependency directory
+node_modules
+
+# Build folder
+auto-trasnlator-win32-ia32
+
+# VS Code
+settings.json
+launch.json
+yarn.lock
